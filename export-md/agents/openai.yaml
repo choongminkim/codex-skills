@@ -1,0 +1,4 @@
+interface:
+  display_name: "Export MD"
+  short_description: "Export learned knowledge to Markdown"
+  default_prompt: "Use $export-md to turn the knowledge discussed in this conversation into a Markdown note."

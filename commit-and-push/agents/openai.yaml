@@ -1,0 +1,4 @@
+interface:
+  display_name: "Commit And Push"
+  short_description: "Create grouped commits and push safely"
+  default_prompt: "Use $commit-and-push to commit my current git changes as isolated commits and push them."
