@@ -13,12 +13,11 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_CONFIG = Path("/Users/cmkim/Documents/Codex/config/zotero-obsidian.yaml")
 BASE_URL = "http://127.0.0.1:23119/api/users/0"
 API_HEADERS = {"Zotero-API-Version": "3"}
 
 
-DEFAULT_CONFIG_TEXT = """zotero:
+CONFIG_TEMPLATE_TEXT = """zotero:
   collection_name: ""
   collection_key: ""
   include_subcollections: true
@@ -302,7 +301,7 @@ def cmd_init_config(args: argparse.Namespace) -> None:
     if path.exists() and not args.force:
         fail(f"Config already exists: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(DEFAULT_CONFIG_TEXT, encoding="utf-8")
+    path.write_text(CONFIG_TEMPLATE_TEXT, encoding="utf-8")
     print(path)
 
 
@@ -389,19 +388,19 @@ def main() -> None:
     subcommands = parser.add_subparsers(required=True)
 
     init_config = subcommands.add_parser("init-config")
-    init_config.add_argument("--config", default=str(DEFAULT_CONFIG))
+    init_config.add_argument("--config", required=True)
     init_config.add_argument("--force", action="store_true")
     init_config.set_defaults(func=cmd_init_config)
 
     validate = subcommands.add_parser("validate-config")
-    validate.add_argument("--config", default=str(DEFAULT_CONFIG))
+    validate.add_argument("--config", required=True)
     validate.set_defaults(func=cmd_validate_config)
 
     collections = subcommands.add_parser("collections")
     collections.set_defaults(func=cmd_collections)
 
     export_items = subcommands.add_parser("export-items")
-    export_items.add_argument("--config", default=str(DEFAULT_CONFIG))
+    export_items.add_argument("--config", required=True)
     export_items.add_argument("--out")
     export_items.add_argument(
         "--no-fulltext",

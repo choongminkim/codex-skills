@@ -13,6 +13,8 @@ Use this skill only for summarizing papers from Zotero.
 - Helper script: `scripts/summarize_zotero.py`
 - Summary format reference: `references/summary-format.md`
 
+The helper script must not hardcode the default config path. When running commands that need config, always pass `--config /Users/cmkim/Documents/Codex/config/zotero-obsidian.yaml` explicitly.
+
 ## Workflow
 
 1. Check Zotero access.
