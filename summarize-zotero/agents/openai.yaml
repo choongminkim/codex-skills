@@ -1,0 +1,4 @@
+interface:
+  display_name: "Summarize Zotero"
+  short_description: "Summarize Zotero PDFs to Markdown"
+  default_prompt: "Use $summarize-zotero to read Zotero PDF full text, summarize it, and save Markdown notes using the configured Obsidian folder."
