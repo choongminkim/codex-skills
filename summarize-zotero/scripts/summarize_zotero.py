@@ -15,6 +15,9 @@ from typing import Any
 
 BASE_URL = "http://127.0.0.1:23119/api/users/0"
 API_HEADERS = {"Zotero-API-Version": "3"}
+SKILL_DIR = Path(__file__).resolve().parents[1]
+ENV_FILE = SKILL_DIR / ".env"
+CONFIG_ENV_KEY = "SUMMARIZE_ZOTERO_CONFIG"
 
 
 CONFIG_TEMPLATE_TEXT = """zotero:
@@ -43,6 +46,34 @@ summary:
 def fail(message: str, code: int = 1) -> None:
     print(message, file=sys.stderr)
     raise SystemExit(code)
+
+
+def load_dotenv(path: Path = ENV_FILE) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            values[key] = value
+    return values
+
+
+def resolve_config_path(raw_config: str | None) -> Path:
+    if raw_config:
+        return Path(raw_config).expanduser()
+    env = load_dotenv()
+    config = env.get(CONFIG_ENV_KEY)
+    if config:
+        return Path(config).expanduser()
+    fail(
+        f"Config path not provided. Pass --config or set {CONFIG_ENV_KEY}=... in {ENV_FILE}"
+    )
 
 
 def scalar(value: str) -> Any:
@@ -297,7 +328,7 @@ def summarize_item(item: dict[str, Any], filename_pattern: str) -> dict[str, Any
 
 
 def cmd_init_config(args: argparse.Namespace) -> None:
-    path = Path(args.config).expanduser()
+    path = resolve_config_path(args.config)
     if path.exists() and not args.force:
         fail(f"Config already exists: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -306,7 +337,7 @@ def cmd_init_config(args: argparse.Namespace) -> None:
 
 
 def cmd_validate_config(args: argparse.Namespace) -> None:
-    path = Path(args.config).expanduser()
+    path = resolve_config_path(args.config)
     config = load_config(path)
     errors: list[str] = []
     zotero = config.get("zotero") or {}
@@ -357,7 +388,7 @@ def collection_key_from_config(config: dict[str, Any]) -> str:
 
 
 def cmd_export_items(args: argparse.Namespace) -> None:
-    config = load_config(Path(args.config).expanduser())
+    config = load_config(resolve_config_path(args.config))
     key = collection_key_from_config(config)
     pattern = filename_pattern_from_config(config)
     encoded = urllib.parse.quote(key)
@@ -388,19 +419,19 @@ def main() -> None:
     subcommands = parser.add_subparsers(required=True)
 
     init_config = subcommands.add_parser("init-config")
-    init_config.add_argument("--config", required=True)
+    init_config.add_argument("--config")
     init_config.add_argument("--force", action="store_true")
     init_config.set_defaults(func=cmd_init_config)
 
     validate = subcommands.add_parser("validate-config")
-    validate.add_argument("--config", required=True)
+    validate.add_argument("--config")
     validate.set_defaults(func=cmd_validate_config)
 
     collections = subcommands.add_parser("collections")
     collections.set_defaults(func=cmd_collections)
 
     export_items = subcommands.add_parser("export-items")
-    export_items.add_argument("--config", required=True)
+    export_items.add_argument("--config")
     export_items.add_argument("--out")
     export_items.add_argument(
         "--no-fulltext",

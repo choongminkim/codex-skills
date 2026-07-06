@@ -9,11 +9,13 @@ Use this skill only for summarizing papers from Zotero.
 
 ## Default Inputs
 
-- Default config: `/Users/cmkim/Documents/Codex/config/zotero-obsidian.yaml`
+- Config path: read from `.env` in this skill directory using `SUMMARIZE_ZOTERO_CONFIG`.
 - Helper script: `scripts/summarize_zotero.py`
 - Summary format reference: `references/summary-format.md`
 
-The helper script must not hardcode the default config path. When running commands that need config, always pass `--config /Users/cmkim/Documents/Codex/config/zotero-obsidian.yaml` explicitly.
+The helper script must not hardcode a user-specific config path. When running commands that need config, prefer `--config <path>` if the user provided one; otherwise let the helper read `SUMMARIZE_ZOTERO_CONFIG` from `.env`. If `.env` is missing or does not define `SUMMARIZE_ZOTERO_CONFIG`, ask the user for the config path or initialize one before continuing.
+
+Do not commit `.env`; it is ignored by `.gitignore` because it contains user-local paths.
 
 ## Workflow
 
@@ -33,6 +35,9 @@ The helper script must not hardcode the default config path. When running comman
    - Use the configured language, usually Korean.
    - Keep claims grounded in collected Zotero metadata, abstract, notes, annotations, and PDF full text.
    - Do not invent methods, results, datasets, numbers, or limitations that are not present in the source material.
+   - Add a `Category` section with flat `prefix:value` keywords for downstream categorization.
+   - Generate category keywords from the PDF full text; use Zotero tags only as source context.
+   - Do not write generated category keywords to Zotero metadata.
 5. Return the result.
    - By default, write a plain Markdown summary file after summarizing.
    - Use `obsidian.vault_path`, `obsidian.output_folder`, and `obsidian.filename_pattern` from the config to choose the destination.
@@ -72,9 +77,23 @@ For a single paper, prefer:
 ## 읽기 전 체크포인트
 
 - ...
+
+## Category
+
+- domain:...
+- task:...
+- method:...
+- evidence:...
+- setting:...
+- data:...
+- population:...
+- outcome:...
+- metric:...
 ```
 
-Do not add title metadata blocks, DOI/Zotero link blocks, or `Source Metadata` sections unless the user explicitly asks. The saved Markdown file should contain only the configured summary sections.
+`Category` must be the final section in saved Markdown files. It must be a flat list only. Do not add heading 3 subsections under `Category`. Use lowercase prefixes. Use lowercase kebab-case values by default, but preserve conventional uppercase acronyms or proper names such as `EHR`, `AUROC`, `ICU`, `ED`, `SOFA`, `LLM`, `CT`, and `MRI`. Keep equivalent concepts to one spelling within a project.
+
+Do not add title metadata blocks, DOI/Zotero link blocks, or `Source Metadata` sections unless the user explicitly asks. The saved Markdown file should contain only the configured summary sections and `Category`.
 
 For a collection scan, produce one compact section per paper with title/citekey and a short reading-oriented summary.
 
@@ -82,6 +101,8 @@ For a collection scan, produce one compact section per paper with title/citekey 
 
 - Treat Zotero as the source of truth.
 - Do not write to Zotero unless the user explicitly asks to add/import/update Zotero items or notes.
+- Never write generated category keywords to Zotero item metadata.
+- Preserve existing Zotero tags as source metadata only.
 - Writing Markdown summaries to the configured Obsidian folder is allowed as the normal output for this skill.
 - Do not patch or merge existing Zotero Integration notes unless the user explicitly asks for that behavior.
 
