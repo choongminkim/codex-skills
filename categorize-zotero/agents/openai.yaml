@@ -1,0 +1,4 @@
+interface:
+  display_name: "Categorize Zotero"
+  short_description: "Classify Zotero papers from Obsidian notes"
+  default_prompt: "Use $categorize-zotero to classify configured Zotero inbox papers from matching Obsidian summary notes."
