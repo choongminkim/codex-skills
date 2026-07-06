@@ -15,6 +15,37 @@ Use this skill only for summarizing papers from Zotero.
 
 The helper script must not hardcode a user-specific config path. When running commands that need config, prefer `--config <path>` if the user provided one; otherwise let the helper read `SUMMARIZE_ZOTERO_CONFIG` from `.env`. If `.env` is missing or does not define `SUMMARIZE_ZOTERO_CONFIG`, ask the user for the config path or initialize one before continuing.
 
+To initialize local configuration, run:
+
+```bash
+python3 scripts/summarize_zotero.py init-env
+```
+
+This creates this skill's `.env` and points `SUMMARIZE_ZOTERO_CONFIG` to the default Codex workspace config file:
+
+- macOS: `/Users/{USER}/Documents/Codex/config/zotero-obsidian.yaml`
+- Windows: `C:\Users\{USER}\Documents\Codex\config\zotero-obsidian.yaml`
+
+If the config file does not exist, `init-env` creates it from the bundled template. If the user wants a different location, run `init-env --config <path>` or pass `--config <path>` to individual commands.
+
+Keep `zotero-obsidian.yaml` limited to environment and routing settings: Zotero collection identity and Obsidian output path/filename pattern. Do not store summary section names or summary language in the YAML. This skill writes Korean summaries by default unless the user explicitly asks for another language in the current request.
+
+When creating a new `zotero-obsidian.yaml`, use this minimal format:
+
+```yaml
+zotero:
+  collection_name: ""
+  collection_key: ""
+  include_subcollections: true
+
+obsidian:
+  vault_path: ""
+  output_folder: ""
+  filename_pattern: "@{citekey}"
+```
+
+Ask the user for missing values before summarizing: `collection_name` or `collection_key`, `vault_path`, and `output_folder`. Keep `filename_pattern` as `@{citekey}` unless the user requests another naming scheme.
+
 Do not commit `.env`; it is ignored by `.gitignore` because it contains user-local paths.
 
 ## Workflow
@@ -32,7 +63,7 @@ Do not commit `.env`; it is ignored by `.gitignore` because it contains user-loc
    - Do not make PDF full-text reading configurable in `zotero-obsidian.yaml`; it is the default purpose of this skill.
    - If no PDF attachment or indexed full text is available, report that blocker and only produce an abstract-based fallback if the user explicitly accepts that limitation.
 4. Summarize.
-   - Use the configured language, usually Korean.
+   - Write in Korean by default unless the user explicitly asks for another language.
    - Keep claims grounded in collected Zotero metadata, abstract, notes, annotations, and PDF full text.
    - Do not invent methods, results, datasets, numbers, or limitations that are not present in the source material.
    - Add a `Category` section with flat `prefix:value` keywords for downstream categorization.
@@ -93,7 +124,7 @@ For a single paper, prefer:
 
 `Category` must be the final section in saved Markdown files. It must be a flat list only. Do not add heading 3 subsections under `Category`. Use lowercase prefixes. Use lowercase kebab-case values by default, but preserve conventional uppercase acronyms or proper names such as `EHR`, `AUROC`, `ICU`, `ED`, `SOFA`, `LLM`, `CT`, and `MRI`. Keep equivalent concepts to one spelling within a project.
 
-Do not add title metadata blocks, DOI/Zotero link blocks, or `Source Metadata` sections unless the user explicitly asks. The saved Markdown file should contain only the configured summary sections and `Category`.
+Do not add title metadata blocks, DOI/Zotero link blocks, or `Source Metadata` sections unless the user explicitly asks. The saved Markdown file should contain only the skill-defined summary sections and `Category`.
 
 For a collection scan, produce one compact section per paper with title/citekey and a short reading-oriented summary.
 

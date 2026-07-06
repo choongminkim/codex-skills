@@ -29,17 +29,6 @@ obsidian:
   vault_path: ""
   output_folder: ""
   filename_pattern: "@{citekey}"
-
-summary:
-  language: "ko"
-  sections:
-    - "한줄 요약"
-    - "핵심 주장"
-    - "방법"
-    - "주요 발견"
-    - "한계"
-    - "내 연구와의 관련성"
-    - "인용할 만한 포인트"
 """
 
 
@@ -64,6 +53,10 @@ def load_dotenv(path: Path = ENV_FILE) -> dict[str, str]:
     return values
 
 
+def default_codex_config_path() -> Path:
+    return Path.home() / "Documents" / "Codex" / "config" / "zotero-obsidian.yaml"
+
+
 def resolve_config_path(raw_config: str | None) -> Path:
     if raw_config:
         return Path(raw_config).expanduser()
@@ -72,7 +65,39 @@ def resolve_config_path(raw_config: str | None) -> Path:
     if config:
         return Path(config).expanduser()
     fail(
-        f"Config path not provided. Pass --config or set {CONFIG_ENV_KEY}=... in {ENV_FILE}"
+        "Config path not provided. Run "
+        f"`{Path(__file__).name} init-env` to create {ENV_FILE} pointing to "
+        f"{default_codex_config_path()}, or pass --config."
+    )
+
+
+def cmd_init_env(args: argparse.Namespace) -> None:
+    config_path = (
+        Path(args.config).expanduser()
+        if args.config
+        else default_codex_config_path()
+    )
+    env_exists = ENV_FILE.exists()
+    if env_exists and not args.force:
+        fail(f"Env already exists: {ENV_FILE}. Use --force to overwrite it.")
+
+    config_created = False
+    if args.force_config or not config_path.exists():
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(CONFIG_TEMPLATE_TEXT, encoding="utf-8")
+        config_created = True
+
+    ENV_FILE.write_text(f"{CONFIG_ENV_KEY}={config_path}\n", encoding="utf-8")
+    print(
+        json.dumps(
+            {
+                "env": str(ENV_FILE),
+                "config": str(config_path),
+                "config_created": config_created,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
     )
 
 
@@ -342,15 +367,12 @@ def cmd_validate_config(args: argparse.Namespace) -> None:
     errors: list[str] = []
     zotero = config.get("zotero") or {}
     obsidian = config.get("obsidian") or {}
-    summary = config.get("summary") or {}
     if not (zotero.get("collection_key") or zotero.get("collection_name")):
         errors.append("Set zotero.collection_key or zotero.collection_name")
     if not obsidian.get("vault_path"):
         errors.append("Set obsidian.vault_path")
     if not obsidian.get("output_folder"):
         errors.append("Set obsidian.output_folder")
-    if summary and not summary.get("language"):
-        errors.append("Set summary.language")
     if errors:
         print(json.dumps({"ok": False, "errors": errors}, ensure_ascii=False, indent=2))
         raise SystemExit(2)
@@ -417,6 +439,19 @@ def cmd_export_items(args: argparse.Namespace) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     subcommands = parser.add_subparsers(required=True)
+
+    init_env = subcommands.add_parser("init-env")
+    init_env.add_argument(
+        "--config",
+        help="Config path to store in .env. Defaults to ~/Documents/Codex/config/zotero-obsidian.yaml.",
+    )
+    init_env.add_argument("--force", action="store_true", help="Overwrite the skill .env file.")
+    init_env.add_argument(
+        "--force-config",
+        action="store_true",
+        help="Overwrite the config file with the default template.",
+    )
+    init_env.set_defaults(func=cmd_init_env)
 
     init_config = subcommands.add_parser("init-config")
     init_config.add_argument("--config")

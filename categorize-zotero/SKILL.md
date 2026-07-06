@@ -17,10 +17,10 @@ This skill does not create tags. It does not use project names, previous filing 
 
 Read configuration from a `.env` file in the same folder as this `SKILL.md`.
 
-The `.env` file must define only the config path needed by this skill:
+The `.env` file must define only the config path needed by this skill. Store that YAML file under the Codex workspace `config/` directory:
 
 ```dotenv
-CATEGORIZE_ZOTERO_CONFIG=/absolute/path/to/zotero-obsidian.yaml
+CATEGORIZE_ZOTERO_CONFIG=/Users/{USER}/Documents/Codex/config/zotero-obsidian.yaml
 ```
 
 `CATEGORIZE_ZOTERO_CONFIG` must point to a YAML config with this shape:
@@ -36,10 +36,28 @@ obsidian:
   filename_pattern: "@{citekey}"
 ```
 
-If `.env` is missing, do not guess paths or fall back to other environment variable names. Tell the user to create it next to `SKILL.md`:
+If `.env` is missing, do not guess paths or fall back to other environment variable names. Tell the user to create a Codex workspace config file first, then create `.env` next to `SKILL.md`.
+
+Use these default Codex workspace roots:
+
+- macOS: `/Users/{USER}/Documents/Codex`
+- Windows: `C:\Users\{USER}\Documents\Codex`
+
+Tell the user to create this config path inside the Codex workspace:
+
+- macOS: `/Users/{USER}/Documents/Codex/config/zotero-obsidian.yaml`
+- Windows: `C:\Users\{USER}\Documents\Codex\config\zotero-obsidian.yaml`
+
+Then tell the user to create `.env` next to `SKILL.md`:
 
 ```dotenv
-CATEGORIZE_ZOTERO_CONFIG=/absolute/path/to/zotero-obsidian.yaml
+CATEGORIZE_ZOTERO_CONFIG=/Users/{USER}/Documents/Codex/config/zotero-obsidian.yaml
+```
+
+For Windows, use:
+
+```dotenv
+CATEGORIZE_ZOTERO_CONFIG=C:\Users\{USER}\Documents\Codex\config\zotero-obsidian.yaml
 ```
 
 If the YAML config is missing required fields, stop and report the missing keys.

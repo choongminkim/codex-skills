@@ -73,7 +73,7 @@ Use one compact section per paper:
 
 ## Style Rules
 
-- Write in Korean unless configured otherwise.
+- Write in Korean unless the user explicitly asks for another language.
 - Preserve English technical terms when clearer.
 - Keep the summary factual and source-grounded.
 - Use PDF full text as the default source. If only abstract-level information is available, label that as a blocker or explicit fallback.
