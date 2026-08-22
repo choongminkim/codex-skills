@@ -15,177 +15,35 @@ from typing import Any
 
 BASE_URL = "http://127.0.0.1:23119/api/users/0"
 API_HEADERS = {"Zotero-API-Version": "3"}
-SKILL_DIR = Path(__file__).resolve().parents[1]
-ENV_FILE = SKILL_DIR / ".env"
-CONFIG_ENV_KEY = "SUMMARIZE_ZOTERO_CONFIG"
-
-
-CONFIG_TEMPLATE_TEXT = """zotero:
-  collection_name: ""
-  collection_key: ""
-  include_subcollections: true
-
-obsidian:
-  vault_path: ""
-  output_folder: ""
-  filename_pattern: "@{citekey}"
-"""
-
-
 def fail(message: str, code: int = 1) -> None:
     print(message, file=sys.stderr)
     raise SystemExit(code)
 
 
-def load_dotenv(path: Path = ENV_FILE) -> dict[str, str]:
-    values: dict[str, str] = {}
-    if not path.exists():
-        return values
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key:
-            values[key] = value
-    return values
+def runtime_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
+    missing: list[str] = []
+    if not (args.collection_key or args.collection_name):
+        missing.append("collection_key or collection_name")
+    if not args.vault_path:
+        missing.append("vault_path")
+    if not args.output_folder:
+        missing.append("output_folder")
+    if not args.filename_pattern:
+        missing.append("filename_pattern")
+    if missing:
+        raise ValueError("Missing required values: " + ", ".join(missing))
 
-
-def default_codex_config_path() -> Path:
-    return Path.home() / "Documents" / "Codex" / "config" / "zotero-obsidian.yaml"
-
-
-def resolve_config_path(raw_config: str | None) -> Path:
-    if raw_config:
-        return Path(raw_config).expanduser()
-    env = load_dotenv()
-    config = env.get(CONFIG_ENV_KEY)
-    if config:
-        return Path(config).expanduser()
-    fail(
-        "Config path not provided. Run "
-        f"`{Path(__file__).name} init-env` to create {ENV_FILE} pointing to "
-        f"{default_codex_config_path()}, or pass --config."
-    )
-
-
-def cmd_init_env(args: argparse.Namespace) -> None:
-    config_path = (
-        Path(args.config).expanduser()
-        if args.config
-        else default_codex_config_path()
-    )
-    env_exists = ENV_FILE.exists()
-    if env_exists and not args.force:
-        fail(f"Env already exists: {ENV_FILE}. Use --force to overwrite it.")
-
-    config_created = False
-    if args.force_config or not config_path.exists():
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text(CONFIG_TEMPLATE_TEXT, encoding="utf-8")
-        config_created = True
-
-    ENV_FILE.write_text(f"{CONFIG_ENV_KEY}={config_path}\n", encoding="utf-8")
-    print(
-        json.dumps(
-            {
-                "env": str(ENV_FILE),
-                "config": str(config_path),
-                "config_created": config_created,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-    )
-
-
-def scalar(value: str) -> Any:
-    value = value.strip()
-    if value in {"true", "false"}:
-        return value == "true"
-    if value in {"null", "~"}:
-        return None
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
-        return value[1:-1]
-    return value
-
-
-def minimal_yaml(text: str) -> dict[str, Any]:
-    root: dict[str, Any] = {}
-    stack: list[tuple[int, Any]] = [(-1, root)]
-    last_key_for_indent: dict[int, tuple[Any, str]] = {}
-
-    for raw in text.splitlines():
-        if not raw.strip() or raw.lstrip().startswith("#"):
-            continue
-        indent = len(raw) - len(raw.lstrip(" "))
-        line = raw.strip()
-        while stack and indent <= stack[-1][0]:
-            stack.pop()
-        parent = stack[-1][1]
-
-        if line.startswith("- "):
-            item = scalar(line[2:])
-            if not isinstance(parent, list):
-                fail("Unsupported YAML list placement in config")
-            parent.append(item)
-            continue
-
-        if ":" not in line:
-            continue
-        key, raw_value = line.split(":", 1)
-        key = key.strip()
-        raw_value = raw_value.strip()
-
-        if raw_value:
-            parent[key] = scalar(raw_value)
-            last_key_for_indent[indent] = (parent, key)
-            continue
-
-        child: dict[str, Any] = {}
-        parent[key] = child
-        last_key_for_indent[indent] = (parent, key)
-        stack.append((indent, child))
-
-        # Convert child mapping into a list if the next non-empty child line is a list.
-        # The simple parser handles this lazily in a second pass below.
-
-    # Repair known list fields from the simple parse.
-    def collect_list(section: str, key: str) -> None:
-        pattern = re.compile(rf"^\s{{4}}{re.escape(key)}:\s*$\n((?:\s{{6}}- .+\n?)+)", re.M)
-        match = pattern.search(text)
-        if not match:
-            return
-        values = [scalar(line.strip()[2:]) for line in match.group(1).splitlines()]
-        if section in root and isinstance(root[section], dict):
-            root[section][key] = values
-
-    collect_list("summary", "sections")
-    if "note" in root and isinstance(root["note"], dict):
-        fm = root["note"].get("frontmatter")
-        if isinstance(fm, dict):
-            pattern = re.compile(r"^\s{4}tags:\s*$\n((?:\s{6}- .+\n?)+)", re.M)
-            match = pattern.search(text)
-            if match:
-                fm["tags"] = [scalar(line.strip()[2:]) for line in match.group(1).splitlines()]
-    return root
-
-
-def load_config(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        fail(f"Config not found: {path}")
-    text = path.read_text(encoding="utf-8")
-    try:
-        import yaml  # type: ignore
-
-        loaded = yaml.safe_load(text)
-        if not isinstance(loaded, dict):
-            fail("Config root must be a mapping")
-        return loaded
-    except ModuleNotFoundError:
-        return minimal_yaml(text)
+    return {
+        "zotero": {
+            "collection_key": args.collection_key,
+            "collection_name": args.collection_name,
+        },
+        "obsidian": {
+            "vault_path": args.vault_path,
+            "output_folder": args.output_folder,
+            "filename_pattern": args.filename_pattern,
+        },
+    }
 
 
 def api_get(path: str) -> tuple[Any, dict[str, str]]:
@@ -352,33 +210,6 @@ def summarize_item(item: dict[str, Any], filename_pattern: str) -> dict[str, Any
     }
 
 
-def cmd_init_config(args: argparse.Namespace) -> None:
-    path = resolve_config_path(args.config)
-    if path.exists() and not args.force:
-        fail(f"Config already exists: {path}")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(CONFIG_TEMPLATE_TEXT, encoding="utf-8")
-    print(path)
-
-
-def cmd_validate_config(args: argparse.Namespace) -> None:
-    path = resolve_config_path(args.config)
-    config = load_config(path)
-    errors: list[str] = []
-    zotero = config.get("zotero") or {}
-    obsidian = config.get("obsidian") or {}
-    if not (zotero.get("collection_key") or zotero.get("collection_name")):
-        errors.append("Set zotero.collection_key or zotero.collection_name")
-    if not obsidian.get("vault_path"):
-        errors.append("Set obsidian.vault_path")
-    if not obsidian.get("output_folder"):
-        errors.append("Set obsidian.output_folder")
-    if errors:
-        print(json.dumps({"ok": False, "errors": errors}, ensure_ascii=False, indent=2))
-        raise SystemExit(2)
-    print(json.dumps({"ok": True, "config": str(path)}, ensure_ascii=False, indent=2))
-
-
 def cmd_collections(_args: argparse.Namespace) -> None:
     rows = all_pages("/collections?format=json")
     for row in rows:
@@ -410,7 +241,10 @@ def collection_key_from_config(config: dict[str, Any]) -> str:
 
 
 def cmd_export_items(args: argparse.Namespace) -> None:
-    config = load_config(resolve_config_path(args.config))
+    try:
+        config = runtime_config_from_args(args)
+    except ValueError as exc:
+        fail(str(exc))
     key = collection_key_from_config(config)
     pattern = filename_pattern_from_config(config)
     encoded = urllib.parse.quote(key)
@@ -440,33 +274,15 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     subcommands = parser.add_subparsers(required=True)
 
-    init_env = subcommands.add_parser("init-env")
-    init_env.add_argument(
-        "--config",
-        help="Config path to store in .env. Defaults to ~/Documents/Codex/config/zotero-obsidian.yaml.",
-    )
-    init_env.add_argument("--force", action="store_true", help="Overwrite the skill .env file.")
-    init_env.add_argument(
-        "--force-config",
-        action="store_true",
-        help="Overwrite the config file with the default template.",
-    )
-    init_env.set_defaults(func=cmd_init_env)
-
-    init_config = subcommands.add_parser("init-config")
-    init_config.add_argument("--config")
-    init_config.add_argument("--force", action="store_true")
-    init_config.set_defaults(func=cmd_init_config)
-
-    validate = subcommands.add_parser("validate-config")
-    validate.add_argument("--config")
-    validate.set_defaults(func=cmd_validate_config)
-
     collections = subcommands.add_parser("collections")
     collections.set_defaults(func=cmd_collections)
 
     export_items = subcommands.add_parser("export-items")
-    export_items.add_argument("--config")
+    export_items.add_argument("--collection-key")
+    export_items.add_argument("--collection-name")
+    export_items.add_argument("--vault-path")
+    export_items.add_argument("--output-folder")
+    export_items.add_argument("--filename-pattern")
     export_items.add_argument("--out")
     export_items.add_argument(
         "--no-fulltext",

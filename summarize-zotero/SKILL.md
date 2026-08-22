@@ -7,46 +7,42 @@ description: Summarize papers directly from Zotero PDF attachments using full te
 
 Use this skill only for summarizing papers from Zotero.
 
-## Default Inputs
+## Project Configuration
 
-- Config path: read from `.env` in this skill directory using `SUMMARIZE_ZOTERO_CONFIG`.
-- Helper script: `scripts/summarize_zotero.py`
+Resolve runtime values in this order:
+
+1. Values explicitly provided in the current user request.
+2. Values in the active project's loaded `AGENTS.md` instructions.
+
+Current-request values override `AGENTS.md`. Do not read skill-local environment files or external configuration files. Do not persist values unless the user explicitly asks.
+
+Interpret relative paths from `AGENTS.md` relative to the project directory governed by that file. Before accessing Zotero or writing a summary, list the values required for the requested operation and resolve each one independently. If any required value remains unresolved, stop and ask only for the missing values.
+
+Required values depend on the operation:
+
+- Collection scan: Zotero collection key or collection name.
+- Saved Markdown output: Obsidian vault path, output folder, and filename pattern.
+- Chat-only output: no Obsidian destination values.
+- Specific-paper request: a paper identifier supplied by the request or discoverable through Zotero; a collection value is not required.
+
+The skill writes Korean summaries unless the current request specifies another language.
+
+## Helper
+
+- Script: `scripts/summarize_zotero.py`
 - Summary format reference: `references/summary-format.md`
 
-The helper script must not hardcode a user-specific config path. When running commands that need config, prefer `--config <path>` if the user provided one; otherwise let the helper read `SUMMARIZE_ZOTERO_CONFIG` from `.env`. If `.env` is missing or does not define `SUMMARIZE_ZOTERO_CONFIG`, ask the user for the config path or initialize one before continuing.
-
-To initialize local configuration, run:
+The skill interprets the current request and active `AGENTS.md`, then passes resolved values directly to the helper. For a collection export, use the applicable arguments:
 
 ```bash
-python3 scripts/summarize_zotero.py init-env
+python3 scripts/summarize_zotero.py export-items \
+  --collection-key <key> \
+  --vault-path <vault> \
+  --output-folder <folder> \
+  --filename-pattern '<pattern>'
 ```
 
-This creates this skill's `.env` and points `SUMMARIZE_ZOTERO_CONFIG` to the default Codex workspace config file:
-
-- macOS: `/Users/{USER}/Documents/Codex/config/zotero-obsidian.yaml`
-- Windows: `C:\Users\{USER}\Documents\Codex\config\zotero-obsidian.yaml`
-
-If the config file does not exist, `init-env` creates it from the bundled template. If the user wants a different location, run `init-env --config <path>` or pass `--config <path>` to individual commands.
-
-Keep `zotero-obsidian.yaml` limited to environment and routing settings: Zotero collection identity and Obsidian output path/filename pattern. Do not store summary section names or summary language in the YAML. This skill writes Korean summaries by default unless the user explicitly asks for another language in the current request.
-
-When creating a new `zotero-obsidian.yaml`, use this minimal format:
-
-```yaml
-zotero:
-  collection_name: ""
-  collection_key: ""
-  include_subcollections: true
-
-obsidian:
-  vault_path: ""
-  output_folder: ""
-  filename_pattern: "@{citekey}"
-```
-
-Ask the user for missing values before summarizing: `collection_name` or `collection_key`, `vault_path`, and `output_folder`. Keep `filename_pattern` as `@{citekey}` unless the user requests another naming scheme.
-
-Do not commit `.env`; it is ignored by `.gitignore` because it contains user-local paths.
+Use `--collection-name` instead of `--collection-key` when only the name is available. Do not invoke the helper until all arguments required by that command have been resolved.
 
 ## Workflow
 
@@ -54,13 +50,13 @@ Do not commit `.env`; it is ignored by `.gitignore` because it contains user-loc
    - Use the Zotero helper or `scripts/summarize_zotero.py` to confirm the local API is available.
    - If Zotero API access fails, report the exact blocker.
 2. Identify the target paper set.
-   - For a collection request, use `zotero.collection_key` or `zotero.collection_name` from the config.
+   - For a collection request, use the resolved collection key or collection name.
    - For a specific paper, match by title, citekey, Zotero item key, DOI, or author/title clue.
 3. Gather source material.
    - Always collect title, authors, year, publication title, abstract, DOI/URL, Zotero item key, tags, and citekey when available.
    - Include Zotero notes/annotations only when available in metadata or rendered text provided by the user.
    - Always read the full text from Zotero PDF attachments before summarizing.
-   - Do not make PDF full-text reading configurable in `zotero-obsidian.yaml`; it is the default purpose of this skill.
+   - PDF full-text reading is the default purpose of this skill and is not a project routing option.
    - If no PDF attachment or indexed full text is available, report that blocker and only produce an abstract-based fallback if the user explicitly accepts that limitation.
 4. Summarize.
    - Write in Korean by default unless the user explicitly asks for another language.
@@ -71,8 +67,8 @@ Do not commit `.env`; it is ignored by `.gitignore` because it contains user-loc
    - Do not write generated category keywords to Zotero metadata.
 5. Return the result.
    - By default, write a plain Markdown summary file after summarizing.
-   - Use `obsidian.vault_path`, `obsidian.output_folder`, and `obsidian.filename_pattern` from the config to choose the destination.
-   - The default filename pattern should be `@{citekey}`, producing names such as `@ZhangEtAl2026.md`.
+   - Use the resolved Obsidian vault path, output folder, and filename pattern to choose the destination.
+   - A filename pattern such as `@{citekey}` produces names such as `@ZhangEtAl2026.md`.
    - Also provide a brief chat confirmation with the saved path and a compact summary.
    - If the user explicitly asks for chat-only output, do not write a file.
 
@@ -134,7 +130,7 @@ For a collection scan, produce one compact section per paper with title/citekey 
 - Do not write to Zotero unless the user explicitly asks to add/import/update Zotero items or notes.
 - Never write generated category keywords to Zotero item metadata.
 - Preserve existing Zotero tags as source metadata only.
-- Writing Markdown summaries to the configured Obsidian folder is allowed as the normal output for this skill.
+- Writing Markdown summaries to the resolved Obsidian folder is allowed as the normal output for this skill.
 - Do not patch or merge existing Zotero Integration notes unless the user explicitly asks for that behavior.
 
 ## References
