@@ -1,93 +1,40 @@
 ---
 name: commit-and-push
-description: Use when the user asks Codex to commit and push git changes, save current work to a remote repository, create separate commits for multiple tasks, or prepare disciplined git history. Guides Codex to inspect the worktree, group related changes into isolated complete commits, write category-prefixed imperative commit messages, and push safely without including unrelated user changes.
+description: Create task-focused Git commits and push when requested. Use for committing changes or organizing requested commits.
 ---
 
 # Commit And Push
 
-## Overview
+Create complete commits for the requested work while preserving unrelated user changes. Push only when the user's instructions authorize pushing; a request to organize or create commits alone does not authorize a push.
 
-Create clean, task-focused git commits and push them to the configured remote. Preserve unrelated user work, use explicit commit message categories, and report exactly what was committed and pushed.
+## Scope and commit grouping
 
-## Workflow
+Inspect the branch, working tree, staged changes, and relevant diffs. Determine the requested scope before staging. Treat already-staged changes as user work, not automatic permission to include them.
 
-1. Inspect the repository state with `git status --short --branch`.
-2. Review relevant changes with `git diff`, `git diff --staged`, and file-level inspection as needed.
-3. Separate changes into logical commit groups by task, behavior, or intent.
-4. Stage only the files or hunks for the first complete group.
-5. Commit with a valid message.
-6. Repeat staging and committing until all requested changes are committed.
-7. Confirm the current branch and remote tracking state.
-8. Push with `git push`, or `git push -u <remote> <branch>` only when upstream is clearly intended from repository context.
+Each commit represents one logical, complete change. Include its implementation, regression tests, and necessary documentation together. Separate independent purposes, not file types. A rename and its updated references belong together when needed to keep the change complete.
 
-## Commit Message Rules
+Stage only the intended files or hunks and review the staged diff before each commit. Preserve unrelated changes and the user's staging state. If mixed edits cannot be separated safely, ask about that file while continuing independent work where possible.
 
-Every commit message must start with one of these categories:
+## Commit messages
 
-- `feat`: Add a new feature.
-- `fix`: Fix a bug.
-- `refactor`: Change code for readability, maintainability, performance, or convenience without changing intended behavior.
-- `chore`: Everything else, including documentation, formatting, tests, dependency updates, configuration, cleanup, and removing dead code.
+Use `category: Imperative description`, beginning the description with a base-form imperative verb.
 
-Use this format:
+| Category | Meaning |
+|---|---|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `refactor` | Structural or implementation improvement without intended behavior changes |
+| `chore` | Other standalone changes, including docs, formatting, tests, dependencies, configuration, and cleanup |
 
-```text
-category: Imperative description
-```
+Choose the category for the commit's purpose, not each included file. For example, a fix with its regression test is `fix: Handle empty search results`. Add a concise body when the reason or validation needs explanation.
 
-The description must start with a base-form imperative verb and describe what the commit does.
+## Push and safety
 
-Good examples:
+- Do not revert, discard, or overwrite unrelated user work. Do not use destructive resets, file checkouts, or forced pushes without an explicit request and a clear understanding of the risk.
+- Follow execution-environment permissions for staging, committing, and pushing. Do not request the same task approval again when authorization is already clear.
+- Before an authorized push, verify the intended commits, remote, branch, upstream, and all commits that would be published, including pre-existing unpushed commits. Do not silently publish unrelated commits.
+- Use `git push` for a clear tracking target, or `git push -u <remote> <branch>` when that upstream is clearly intended. Resolve an ambiguous destination before pushing. Report a rejected push without forcing it.
 
-```text
-feat: Add user profile settings
-fix: Handle empty search results
-refactor: Simplify registration flow
-chore: Add API integration tests
-```
+## Completion
 
-When a commit needs detail, add a blank line and a concise body:
-
-```text
-refactor: Rewrite user registration logic in Rust
-
-Improve registration throughput by moving validation into the Rust service.
-Tested on Rust v1.66.
-```
-
-## Commit Grouping
-
-Each commit should contain one isolated, complete change. Prefer several small commits over one mixed commit when changes have different purposes.
-
-Use separate commits for examples like:
-
-- Renaming variables or files.
-- Adding or updating tests.
-- Fixing a specific bug.
-- Adding a feature.
-- Updating documentation or formatting.
-
-Avoid:
-
-- Mixing refactors, features, tests, and documentation in one commit when they can stand alone.
-- Spreading one logical change across multiple commits.
-- Staging unrelated files because they are present in the worktree.
-
-## Safety Rules
-
-- Do not revert, discard, or overwrite user changes unless explicitly requested.
-- Leave unrelated changes unstaged.
-- If a file contains both related and unrelated edits, use partial staging when practical.
-- If partial staging is ambiguous or risky, ask before committing that file.
-- Do not run destructive commands such as `git reset --hard`, `git checkout -- <file>`, or forced pushes unless the user explicitly asks and the risk is clear.
-- Use escalation or approval when the execution environment requires it for `git add`, `git commit`, or `git push`.
-- Push only after verifying that the intended commits exist and the branch target is clear.
-
-## Final Response
-
-After pushing, tell the user:
-
-- The branch and remote that were pushed.
-- Each commit hash and commit message.
-- Whether the push succeeded.
-- Any changes intentionally left uncommitted.
+Report created commit hashes and messages, relevant validation, and intentionally uncommitted changes. If pushed, state the branch, remote, and whether it succeeded. If the request was commit-only, report that completion without performing a push.
