@@ -1,138 +1,37 @@
 ---
 name: summarize-zotero
-description: Summarize papers directly from Zotero PDF attachments using full text plus metadata, abstracts, tags, and notes. Use when the user asks to summarize Zotero papers, scan a Zotero collection such as Unclassified, summarize a specific paper by title/citekey/Zotero key, compare papers, or create Markdown literature summaries from Zotero content.
+description: Summarize or compare Zotero papers from PDF full text, with Markdown literature notes as the default output.
 ---
 
 # Summarize Zotero
 
-Use this skill only for summarizing papers from Zotero.
+Summarize papers held in Zotero. Read PDF full text and write Korean summaries unless the user requests another language. Preserve the distinction between source findings and interpretation.
 
-## Project Configuration
+## Configuration and scope
 
-Resolve runtime values in this order:
+Resolve each runtime value from explicit user instructions in the current conversation, then the active project's loaded `AGENTS.md`. The latest explicit instruction wins. Interpret relative paths from `AGENTS.md` relative to the directory it governs. Do not read skill-local environment files or unrelated external configuration, or persist values without a request.
 
-1. Values explicitly provided in the current user request.
-2. Values in the active project's loaded `AGENTS.md` instructions.
+- Collection work needs a collection key or name; a specific paper needs an identifier such as title, citekey, item key, or DOI, supplied by the user or discoverable through Zotero.
+- Saving individual notes needs the vault path, output folder, and filename pattern. Do not guess these values.
+- Chat-only output needs no Obsidian destination. Missing save settings do not block identifying papers or reading source material; ask for missing values before the dependent save step.
 
-Current-request values override `AGENTS.md`. Do not read skill-local environment files or external configuration files. Do not persist values unless the user explicitly asks.
+## Source and output requirements
 
-Interpret relative paths from `AGENTS.md` relative to the project directory governed by that file. Before accessing Zotero or writing a summary, list the values required for the requested operation and resolve each one independently. If any required value remains unresolved, stop and ask only for the missing values.
+- Gather available title, authors, year, publication, abstract, DOI/URL, item key, tags, and citation key. Use notes/annotations when available in metadata or user-provided rendered text.
+- Read the PDF attachment full text before summarizing. Check reported indexing coverage; incomplete or unavailable text is a blocker for a full-paper summary, not permission to infer missing results. Use an abstract-only fallback only when the user explicitly accepts it. Report affected papers and continue with independent papers when possible.
+- Ground methods, results, numbers, limitations, and Category keywords in source material. Zotero tags provide context, not generated classification labels.
+- Before drafting, read [references/summary-format.md](references/summary-format.md) for the applicable output mode and Category rules. Keep the format defined there rather than duplicating it here.
+- By default, save one Markdown summary per paper to the resolved destination and report the saved paths with a compact chat summary. For chat-only output, write no files. A collection reading overview is a separate compact output mode; it does not replace the individual-note format when saving literature summaries.
 
-Required values depend on the operation:
+## Access and helper routing
 
-- Collection scan: Zotero collection key or collection name.
-- Saved Markdown output: Obsidian vault path, output folder, and filename pattern.
-- Chat-only output: no Obsidian destination values.
-- Specific-paper request: a paper identifier supplied by the request or discoverable through Zotero; a collection value is not required.
+Use available Zotero read tools to identify papers and retrieve attachments. Report access failures accurately. The bundled helper exports source material as JSON; it does not generate or save Markdown summaries.
 
-The skill writes Korean summaries unless the current request specifies another language.
+Read [references/helper-usage.md](references/helper-usage.md) when using `scripts/summarize_zotero.py`, including collection source-only reads and destination planning. For a specific paper, use Zotero item lookup and full-text access; the helper's collection command does not require selecting an unrelated collection.
 
-## Helper
+## Identity and writes
 
-- Script: `scripts/summarize_zotero.py`
-- Summary format reference: `references/summary-format.md`
-
-The skill interprets the current request and active `AGENTS.md`, then passes resolved values directly to the helper. For a collection export, use the applicable arguments:
-
-```bash
-python3 scripts/summarize_zotero.py export-items \
-  --collection-key <key> \
-  --vault-path <vault> \
-  --output-folder <folder> \
-  --filename-pattern '<pattern>'
-```
-
-Use `--collection-name` instead of `--collection-key` when only the name is available. Do not invoke the helper until all arguments required by that command have been resolved.
-
-## Workflow
-
-1. Check Zotero access.
-   - Use the Zotero helper or `scripts/summarize_zotero.py` to confirm the local API is available.
-   - If Zotero API access fails, report the exact blocker.
-2. Identify the target paper set.
-   - For a collection request, use the resolved collection key or collection name.
-   - For a specific paper, match by title, citekey, Zotero item key, DOI, or author/title clue.
-3. Gather source material.
-   - Always collect title, authors, year, publication title, abstract, DOI/URL, Zotero item key, tags, and citekey when available.
-   - Include Zotero notes/annotations only when available in metadata or rendered text provided by the user.
-   - Always read the full text from Zotero PDF attachments before summarizing.
-   - PDF full-text reading is the default purpose of this skill and is not a project routing option.
-   - If no PDF attachment or indexed full text is available, report that blocker and only produce an abstract-based fallback if the user explicitly accepts that limitation.
-4. Summarize.
-   - Write in Korean by default unless the user explicitly asks for another language.
-   - Keep claims grounded in collected Zotero metadata, abstract, notes, annotations, and PDF full text.
-   - Do not invent methods, results, datasets, numbers, or limitations that are not present in the source material.
-   - Add a `Category` section with flat `prefix:value` keywords for downstream categorization.
-   - Generate category keywords from the PDF full text; use Zotero tags only as source context.
-   - Do not write generated category keywords to Zotero metadata.
-5. Return the result.
-   - By default, write a plain Markdown summary file after summarizing.
-   - Use the resolved Obsidian vault path, output folder, and filename pattern to choose the destination.
-   - A filename pattern such as `@{citekey}` produces names such as `@ZhangEtAl2026.md`.
-   - Also provide a brief chat confirmation with the saved path and a compact summary.
-   - If the user explicitly asks for chat-only output, do not write a file.
-
-## Output Shape
-
-For a single paper, prefer:
-
-```markdown
-## 한줄 요약
-
-...
-
-## 핵심 주장
-
-...
-
-## 방법
-
-...
-
-## 주요 발견
-
-...
-
-## 한계
-
-...
-
-## 인용할 만한 포인트
-
-...
-
-## 읽기 전 체크포인트
-
-- ...
-
-## Category
-
-- domain:...
-- task:...
-- method:...
-- evidence:...
-- setting:...
-- data:...
-- population:...
-- outcome:...
-- metric:...
-```
-
-`Category` must be the final section in saved Markdown files. It must be a flat list only. Do not add heading 3 subsections under `Category`. Use lowercase prefixes. Use lowercase kebab-case values by default, but preserve conventional uppercase acronyms or proper names such as `EHR`, `AUROC`, `ICU`, `ED`, `SOFA`, `LLM`, `CT`, and `MRI`. Keep equivalent concepts to one spelling within a project.
-
-Do not add title metadata blocks, DOI/Zotero link blocks, or `Source Metadata` sections unless the user explicitly asks. The saved Markdown file should contain only the skill-defined summary sections and `Category`.
-
-For a collection scan, produce one compact section per paper with title/citekey and a short reading-oriented summary.
-
-## Safety
-
-- Treat Zotero as the source of truth.
-- Do not write to Zotero unless the user explicitly asks to add/import/update Zotero items or notes.
-- Never write generated category keywords to Zotero item metadata.
-- Preserve existing Zotero tags as source metadata only.
-- Writing Markdown summaries to the resolved Obsidian folder is allowed as the normal output for this skill.
-- Do not patch or merge existing Zotero Integration notes unless the user explicitly asks for that behavior.
-
-## References
-
-Read `references/summary-format.md` when deciding section names or collection-summary format.
+- Do not invent an author/year citation key. Distinguish exported BibTeX keys from missing keys, and verify the key used by Zotero Integration before relying on an `@citekey` filename for downstream matching. Resolve a missing key or obtain an explicit item-key naming choice before saving.
+- Check proposed filenames for collisions and existing files before writing. Do not silently replace an existing note or treat two items as the same paper because their filenames match.
+- Do not modify Zotero items or notes without an explicit request. Never write generated Category keywords to Zotero metadata; preserve existing tags.
+- Saving Markdown to the resolved destination is normal output. Do not patch or merge existing Zotero Integration notes unless explicitly requested.

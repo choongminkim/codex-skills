@@ -7,6 +7,7 @@ import argparse
 import json
 import re
 import sys
+from string import Formatter
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -24,12 +25,11 @@ def runtime_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
     missing: list[str] = []
     if not (args.collection_key or args.collection_name):
         missing.append("collection_key or collection_name")
-    if not args.vault_path:
-        missing.append("vault_path")
-    if not args.output_folder:
-        missing.append("output_folder")
-    if not args.filename_pattern:
-        missing.append("filename_pattern")
+    source_only = getattr(args, "source_only", False)
+    if not source_only:
+        for name in ("vault_path", "output_folder", "filename_pattern"):
+            if not getattr(args, name, None):
+                missing.append(name)
     if missing:
         raise ValueError("Missing required values: " + ", ".join(missing))
 
@@ -38,7 +38,8 @@ def runtime_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
             "collection_key": args.collection_key,
             "collection_name": args.collection_name,
         },
-        "obsidian": {
+        "source_only": source_only,
+        "obsidian": {} if source_only else {
             "vault_path": args.vault_path,
             "output_folder": args.output_folder,
             "filename_pattern": args.filename_pattern,
@@ -94,17 +95,6 @@ def bibtex_key(bibtex: str | None) -> str:
         return ""
     match = re.search(r"@\w+\s*\{\s*([^,\s]+)", bibtex)
     return match.group(1) if match else ""
-
-
-def fallback_citekey(data: dict[str, Any]) -> str:
-    creators = data.get("creators") or []
-    surname = ""
-    if creators:
-        first = creators[0]
-        surname = first.get("lastName") or first.get("name") or ""
-    surname = re.sub(r"[^A-Za-z0-9]+", "", surname) or "Unknown"
-    year = year_from_date(data.get("date"))
-    return f"{surname}{year}" if year else surname
 
 
 def safe_filename(name: str) -> str:
@@ -180,24 +170,33 @@ def pdf_fulltexts(item_key: str) -> list[dict[str, Any]]:
     return texts
 
 
-def summarize_item(item: dict[str, Any], filename_pattern: str) -> dict[str, Any]:
+def summarize_item(item: dict[str, Any], filename_pattern: str | None) -> dict[str, Any]:
     data = item.get("data", item)
-    citekey = bibtex_key(item.get("bibtex")) or fallback_citekey(data)
+    citekey = bibtex_key(item.get("bibtex"))
+    item_key = item.get("key") or data.get("key") or ""
     year = year_from_date(data.get("date"))
     title = data.get("title") or "Untitled"
-    filename = filename_pattern.format(
-        citekey=citekey,
-        year=year,
-        title=safe_filename(title),
-        zotero_key=item.get("key") or data.get("key") or "",
-    )
-    if not filename.endswith(".md"):
-        filename += ".md"
+    filename = None
+    filename_error = None
+    if filename_pattern is not None:
+        fields = {field for _, field, _, _ in Formatter().parse(filename_pattern) if field}
+        if "citekey" in fields and not citekey:
+            filename_error = "Missing citation key required by filename pattern"
+        elif "zotero_key" in fields and not item_key:
+            filename_error = "Missing Zotero item key required by filename pattern"
+        else:
+            filename = filename_pattern.format(
+                citekey=citekey, year=year, title=safe_filename(title), zotero_key=item_key,
+            )
+            if not filename.endswith(".md"):
+                filename += ".md"
+            filename = safe_filename(filename)
     return {
         "title": title,
         "authors": creator_names(data),
         "year": year,
         "citekey": citekey,
+        "citekey_source": "bibtex" if citekey else "missing",
         "zotero_key": item.get("key") or data.get("key") or "",
         "item_type": data.get("itemType") or "",
         "publication_title": data.get("publicationTitle") or data.get("conferenceName") or "",
@@ -205,9 +204,23 @@ def summarize_item(item: dict[str, Any], filename_pattern: str) -> dict[str, Any
         "doi": data.get("DOI") or "",
         "url": data.get("url") or "",
         "tags": [tag.get("tag") for tag in data.get("tags") or [] if tag.get("tag")],
-        "note_filename": safe_filename(filename),
+        "note_filename": filename,
+        "filename_error": filename_error,
         "zotero_select": f"zotero://select/library/items/{item.get('key') or data.get('key') or ''}",
     }
+
+
+def flag_filename_collisions(items: list[dict[str, Any]]) -> None:
+    by_name: dict[str, list[dict[str, Any]]] = {}
+    for item in items:
+        name = item["note_filename"]
+        if name:
+            by_name.setdefault(name.casefold(), []).append(item)
+    for group in by_name.values():
+        if len(group) > 1:
+            for item in group:
+                item["filename_error"] = f"Filename collision: {item['note_filename']}"
+                item["note_filename"] = None
 
 
 def cmd_collections(_args: argparse.Namespace) -> None:
@@ -246,7 +259,7 @@ def cmd_export_items(args: argparse.Namespace) -> None:
     except ValueError as exc:
         fail(str(exc))
     key = collection_key_from_config(config)
-    pattern = filename_pattern_from_config(config)
+    pattern = None if config["source_only"] else filename_pattern_from_config(config)
     encoded = urllib.parse.quote(key)
     rows = all_pages(f"/collections/{encoded}/items/top?include=data,bibtex&format=json")
     items = []
@@ -255,9 +268,10 @@ def cmd_export_items(args: argparse.Namespace) -> None:
         if args.include_fulltext:
             summary["pdf_fulltexts"] = pdf_fulltexts(summary["zotero_key"])
         items.append(summary)
+    flag_filename_collisions(items)
     payload = {
         "collection_key": key,
-        "output_dir": str(output_dir_from_config(config)),
+        "output_dir": None if config["source_only"] else str(output_dir_from_config(config)),
         "count": len(items),
         "items": items,
     }
@@ -284,6 +298,10 @@ def main() -> None:
     export_items.add_argument("--output-folder")
     export_items.add_argument("--filename-pattern")
     export_items.add_argument("--out")
+    export_items.add_argument(
+        "--source-only", action="store_true",
+        help="Fetch source material without planning Markdown destinations or filenames",
+    )
     export_items.add_argument(
         "--no-fulltext",
         action="store_false",

@@ -1,8 +1,10 @@
 # Summary Format
 
-Use these sections for Korean paper summaries unless the user asks for another structure.
+Read this before drafting. Write in Korean by default, retain useful English technical terms, and follow an explicitly requested alternative language or structure.
 
-## Single Paper
+## Individual literature notes
+
+Use this format for a single saved paper and for each paper saved during a collection task:
 
 ```markdown
 ## 한줄 요약
@@ -38,30 +40,21 @@ Use these sections for Korean paper summaries unless the user asks for another s
 - domain:...
 - task:...
 - method:...
-- evidence:...
-- setting:...
-- data:...
-- population:...
-- outcome:...
-- metric:...
 ```
 
-## Category Rules
+The saved note contains the summary sections and Category only. Do not add title metadata, DOI/Zotero link blocks, or a Source Metadata section unless requested. Report missing evidence rather than inventing content to fill a section.
 
-- Use `## Category`, not `## AI Classification`.
-- Place `## Category` as the final section in saved Markdown files.
-- Use a flat bullet list of `prefix:value` keywords only.
-- Do not add heading 3 subsections under `Category`.
-- Use lowercase prefixes: `domain`, `task`, `method`, `evidence`, `setting`, `data`, `population`, `outcome`, `metric`, `score`.
-- Use lowercase kebab-case values by default, such as `risk-stratification` or `machine-learning`.
-- Preserve conventional uppercase acronyms or proper names when clearer, such as `EHR`, `AUROC`, `ICU`, `ED`, `SOFA`, `LLM`, `CT`, and `MRI`.
-- Keep equivalent concepts to one spelling within a project, such as always using `data:EHR` instead of mixing `data:EHR` and `data:ehr`.
-- Generate 5-12 category keywords grounded in PDF full text.
-- Do not write category keywords to Zotero metadata.
+## Category rules
 
-## Collection Scan
+- Put `## Category` last in each saved literature note. Use a flat list of `prefix:value` keywords, with no heading 3 subsections.
+- Use lowercase prefixes such as `domain`, `task`, `method`, `evidence`, `setting`, `data`, `population`, `outcome`, `metric`, and `score`.
+- Prefer 5–12 relevant keywords when the full text supports them; do not pad the list or require every prefix.
+- Use lowercase kebab-case values, preserving conventional uppercase acronyms or proper names such as `EHR`, `AUROC`, `ICU`, `ED`, `SOFA`, `LLM`, `CT`, and `MRI`. Use consistent spellings within the project.
+- Generate keywords from PDF full text. For an explicitly accepted abstract-only fallback, label the limited basis and restrict keywords to that evidence. Do not write generated keywords to Zotero metadata.
 
-Use one compact section per paper:
+## Collection reading overview
+
+Use this compact format when the user requests a collection overview, or as a chat companion to individually saved notes:
 
 ```markdown
 ## @citekey - Short Title
@@ -71,11 +64,12 @@ Use one compact section per paper:
 - 확인할 포인트: ...
 ```
 
-## Style Rules
+Use the Zotero item key when a citation key is unavailable, clearly identifying it as an item key. Do not present it as a citation key. This overview does not require per-paper Category lists and is not the format for saved individual literature notes.
 
-- Write in Korean unless the user explicitly asks for another language.
-- Preserve English technical terms when clearer.
-- Keep the summary factual and source-grounded.
-- Use PDF full text as the default source. If only abstract-level information is available, label that as a blocker or explicit fallback.
-- Do not claim full-paper details unless full text or user-provided notes support them.
-- Do not add extra title metadata blocks, DOI/Zotero link blocks, or `Source Metadata` sections unless explicitly requested.
+If the user requests saving the overview itself, use the requested output path or ask for the missing destination. Do not require an individual-note filename pattern for a single overview file.
+
+## Comparisons and evidence
+
+For a comparison, use shared dimensions relevant to the request, such as research question, method, data, findings, and limitations. Save individual literature notes only when requested or when the task also includes the default per-paper summaries; resolve a destination separately for a requested comparison file.
+
+Keep all outputs source-grounded. Identify an explicitly accepted partial or abstract-based fallback so it cannot be mistaken for a full-paper summary.
